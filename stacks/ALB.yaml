@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  LoadBalancerName:
+    Type: String
+    Default: vspl
+    Description: The name of the ALB.
+
+  Subnets:
+    Type: CommaDelimitedList
+    Description: A list of subnets for the ALB Example subnet-0f1c6432b78501b25,subnet-0fdbd303a4af2afac
+
+  Scheme:
+    Type: String
+    AllowedValues:
+      - internet-facing
+      - internal
+    Description: The scheme of the ALB.
+
+  CertificateArn:
+    Type: String
+    Description: The ARN of the SSL certificate.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of the VPC where the ALB and security group are deployed.
+
+Resources:
+  # Security Group to allow inbound traffic on ports 80 and 443
+  ALBSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security group for ALB to allow inbound traffic on ports 80 and 443
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${LoadBalancerName}-sg"
+
+  MyLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties: 
+      Name: !Ref LoadBalancerName
+      Subnets: !Ref Subnets
+      Scheme: !Ref Scheme
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${LoadBalancerName}-alb"
+      Type: application
+
+  Listener80:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            Host: "#{host}"
+            Path: "/#{path}"
+            Query: "#{query}"
+            StatusCode: HTTP_301
+      LoadBalancerArn: !Ref MyLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  Listener443:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            MessageBody: "Kindly recheck your URL!!"
+            StatusCode: 200
+            ContentType: text/plain
+      LoadBalancerArn: !Ref MyLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-2016-08  # Update if needed
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+
+Outputs:
+  LoadBalancerArn:
+    Description: "The ARN of the load balancer"
+    Value: !GetAtt MyLoadBalancer.LoadBalancerArn
+

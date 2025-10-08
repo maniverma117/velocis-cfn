@@ -1,0 +1,209 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Service with Blue-Green Deployment
+
+Parameters:
+  Cluster:
+    Type: String
+    Description: ECS Cluster Name
+
+  ServiceName:
+    Type: String
+    Description: ECS Service Name
+
+  TaskDefinitionFamily:
+    Type: String
+    Description: ECS Task Definition Family and Name
+
+  TargetGroupArn:
+    Type: String
+    Description: ARN of the Target Group for the Load Balancer (Blue)
+
+  TargetGroupArnGreen:
+    Type: String
+    Description: ARN of the Target Group for the Load Balancer (Green)
+
+  ContainerName:
+    Type: String
+    Description: Name of the Container
+
+  Image:
+    Type: String
+    Description: URL of the image, Example ECR_REPO_URL:DOCKER_IMAGE_TAG
+
+  ContainerPort:
+    Type: Number
+    Description: Port on the container
+
+  AwsLogsRegion:
+    Type: String
+    Description: AWS region for CloudWatch Logs
+
+  RegistryArn:
+    Type: String
+    Description: ARN of the Service Registry
+
+  CapacityProvider:
+    Type: String
+    Description: ECS Capacity Provider
+
+  ExecutionRoleArn:
+    Type: String
+    Description: ARN of the Task Execution Role
+
+  TaskRoleArn:
+    Type: String
+    Description: ARN of the Task Role
+
+  Environment:
+    Type: CommaDelimitedList
+    Description: Environment variables for the container
+
+  EnvironmentFiles:
+    Type: List<String>
+    Description: List of S3 URIs for environment files
+
+  Cpu:
+    Type: String
+    Description: CPU units for the container (e.g., '256', '512', '1024')
+
+  Memory:
+    Type: String
+    Description: Memory (in MiB) for the container (e.g., '512', '1024', '2048')
+
+  Subnets:
+    Type: CommaDelimitedList
+    Description: A list of subnets for Example subnet-0f1c6432b78501b25,subnet-0fdbd303a4af2afac
+
+  SecurityGroups:
+    Type: CommaDelimitedList
+    Description: Security groups for network configuration
+
+  ListenerArn:
+    Type: String
+    Description: ARN of the load balancer listener for production traffic
+
+  TestListenerArn:
+    Type: String
+    Description: ARN of the load balancer listener for test traffic
+
+  CodeDeployRoleArn:
+    Type: String
+    Description: ARN of the IAM role for CodeDeploy with necessary permissions
+
+Resources:
+  MyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref TaskDefinitionFamily
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      NetworkMode: awsvpc
+      ContainerDefinitions:
+        - Name: !Ref ContainerName
+          Image: !Ref Image
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              Protocol: tcp
+          Essential: true
+          Cpu: !Ref Cpu
+          Memory: !Ref Memory
+          Environment:
+            !If
+              - HasEnvironment
+              - !Ref Environment
+              - []
+          EnvironmentFiles:
+            !If
+              - HasEnvironmentFiles
+              - !Ref EnvironmentFiles
+              - []
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub '/ecs/${ContainerName}'
+              awslogs-create-group: 'true'
+              awslogs-region: !Ref AwsLogsRegion
+              awslogs-stream-prefix: ecs
+      RequiresCompatibilities:
+        - EC2
+
+  MyService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      ServiceName: !Ref ServiceName
+      TaskDefinition: !Ref MyTaskDefinition
+      LoadBalancers:
+        - TargetGroupArn: !Ref TargetGroupArn
+          ContainerName: !Ref ContainerName
+          ContainerPort: !Ref ContainerPort
+      ServiceRegistries:
+        - RegistryArn: !Ref RegistryArn
+          ContainerName: !Ref ContainerName
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref Subnets
+          SecurityGroups: !Ref SecurityGroups
+          AssignPublicIp: DISABLED
+      CapacityProviderStrategy:
+        - CapacityProvider: !Ref CapacityProvider
+          Weight: 1
+          Base: 1
+      HealthCheckGracePeriodSeconds: 120
+      SchedulingStrategy: REPLICA
+      DeploymentController:
+        Type: CODE_DEPLOY
+      Tags:
+        - Key: Environment
+          Value: Production
+      EnableECSManagedTags: true
+      PropagateTags: TASK_DEFINITION
+      EnableExecuteCommand: true
+
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ComputePlatform: ECS
+
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      DeploymentGroupName: !Sub "${ServiceName}-BlueGreenDeployment"
+      ServiceRoleArn: !Ref CodeDeployRoleArn
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - TargetGroups:
+              - Name: !Ref TargetGroupArn
+              - Name: !Ref TargetGroupArnGreen
+            ProdTrafficRoute:
+              ListenerArns:
+                - !Ref ListenerArn
+            TestTrafficRoute:
+              ListenerArns:
+                - !Ref TestListenerArn
+      BlueGreenDeploymentConfiguration:
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 1
+
+Conditions:
+  HasEnvironment: !Not [!Equals [!Join [",", !Ref Environment], ""]]
+  HasEnvironmentFiles: !Not [!Equals [!Join ["", !Ref EnvironmentFiles], ""]]
+
+Outputs:
+  ServiceArn:
+    Description: ARN of the ECS Service
+    Value: !Ref MyService

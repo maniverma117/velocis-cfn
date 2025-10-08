@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create a private DNS namespace, ECS capacity providers, and ECS cluster with parameterized inputs.
+
+Parameters:
+  NamespaceName:
+    Type: String
+    Description: The name of the private DNS namespace.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC ID to associate with the namespace.
+    
+  CapacityProviderName:
+    Type: String
+    Description: The name of the first ECS capacity provider.
+    
+  AutoScalingGroupArn:
+    Type: String
+    Description: The ARN of the Auto Scaling group associated with the first capacity provider.
+    
+  CapacityProviderName2:
+    Type: String
+    Description: The name of the second ECS capacity provider.
+    
+  AutoScalingGroupArn2:
+    Type: String
+    Description: The ARN of the Auto Scaling group associated with the second capacity provider.
+    
+  ClusterName:
+    Type: String
+    Description: The name of the ECS cluster.
+    
+  CapacityProviders:
+    Type: CommaDelimitedList
+    Description: A comma-separated list of capacity providers for the ECS cluster Example FARGATE,FARGATE_SPOT,ns-cp-ecs-cfn,ns-cp-ecs-cfn2
+
+Resources:
+  PrivateDnsNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: !Ref NamespaceName
+      Vpc: !Ref VpcId
+      Description: Private DNS namespace for ECS services
+      Properties:
+        DnsProperties:
+          SOA:
+            TTL: 60
+      Tags:
+        - Key: Name
+          Value: !Ref NamespaceName
+
+  EcsCapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      Name: !Ref CapacityProviderName
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref AutoScalingGroupArn
+        ManagedScaling:
+          Status: ENABLED
+          TargetCapacity: 90
+          MinimumScalingStepSize: 1
+          MaximumScalingStepSize: 1
+          InstanceWarmupPeriod: 300
+        ManagedTerminationProtection: DISABLED
+      Tags:
+        - Key: Name
+          Value: !Ref CapacityProviderName
+
+  EcsCapacityProvider2:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      Name: !Ref CapacityProviderName2
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref AutoScalingGroupArn2
+        ManagedScaling:
+          Status: ENABLED
+          TargetCapacity: 90
+          MinimumScalingStepSize: 1
+          MaximumScalingStepSize: 1
+          InstanceWarmupPeriod: 300
+        ManagedTerminationProtection: DISABLED
+      Tags:
+        - Key: Name
+          Value: !Ref CapacityProviderName2
+
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+      CapacityProviders: !Ref CapacityProviders
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Configuration:
+        ExecuteCommandConfiguration:
+          KmsKeyId: ''
+          Logging: OVERRIDE
+          LogConfiguration:
+            CloudWatchLogGroupName: ecs-log-group
+            CloudWatchEncryptionEnabled: true
+      ServiceConnectDefaults:
+        Namespace: !Ref NamespaceName
+
+Outputs:
+  NamespaceId:
+    Description: The ID of the private DNS namespace.
+    Value: !Ref PrivateDnsNamespace
+
+  CapacityProviderArn:
+    Description: The ARN of the first ECS capacity provider.
+    Value: !Ref EcsCapacityProvider
+
+  CapacityProviderArn2:
+    Description: The ARN of the second ECS capacity provider.
+    Value: !Ref EcsCapacityProvider2
+
+  ClusterArn:
+    Description: The ARN of the ECS cluster.
+    Value: !Ref EcsCluster
+

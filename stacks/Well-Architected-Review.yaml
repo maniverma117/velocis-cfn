@@ -1,0 +1,200 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  AWS CloudFormation template for automating Well-Architected Review (WAR) report generation 
+  with a Lambda function, S3 storage, and SNS notifications.
+
+Parameters:
+  WorkloadName:
+    Description: Name of the Well-Architected Workload
+    Type: String
+    Default: MyWellArchitectedWorkload
+  Environment:
+    Description: Environment type (e.g., PRODUCTION or PREPRODUCTION)
+    Type: String
+    Default: PRODUCTION
+    AllowedValues:
+      - PRODUCTION
+      - PREPRODUCTION
+  AccountIds:
+    Description: Comma-separated list of AWS Account IDs associated with the workload
+    Type: String
+    Default: 123456789012
+  AwsRegions:
+    Description: Comma-separated list of AWS regions where the workload is deployed
+    Type: CommaDelimitedList
+    Default: us-east-1
+  ReviewOwnerEmail:
+    Description: Email of the review owner
+    Type: String
+    Default: owner@example.com
+  S3BucketName:
+    Description: Name of the S3 bucket to store Well-Architected reports
+    Type: String
+    Default: well-architected-reports
+  SNSTopicName:
+    Description: Name of the SNS topic for notifications
+    Type: String
+    Default: WellArchitectedNotifications
+
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref S3BucketName
+      VersioningConfiguration:
+        Status: Enabled
+
+  SNSTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: !Ref SNSTopicName
+
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: "WARLambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "WellArchitectedLambdaPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "wellarchitected:CreateWorkload"
+                  - "wellarchitected:GetWorkload"
+                  - "s3:PutObject"
+                  - "sns:Publish"
+                  - "ssm:PutParameter"
+                Resource: "*"
+
+  WARAutomationLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub "WARAutomationLambda-${WorkloadName}"
+      Handler: "lambda_function.lambda_handler"
+      Runtime: "python3.8"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 300
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          from datetime import datetime
+
+          wellarchitected_client = boto3.client('wellarchitected')
+          s3_client = boto3.client('s3')
+          sns_client = boto3.client('sns')
+          ssm_client = boto3.client('ssm')
+
+          S3_BUCKET_NAME = os.environ['S3_BUCKET_NAME']
+          SNS_TOPIC_ARN = os.environ['SNS_TOPIC_ARN']
+          WORKLOAD_NAME = os.environ['WORKLOAD_NAME']
+          ACCOUNT_IDS = os.environ['ACCOUNT_IDS'].split(',')
+          ENVIRONMENT = os.environ['ENVIRONMENT']
+
+          def lambda_handler(event, context):
+              workload_id = create_or_get_workload()
+
+              if not workload_id:
+                  return {
+                      'statusCode': 400,
+                      'body': json.dumps('Error: Unable to get or create workload ID.')
+                  }
+
+              report_content = {
+                  'WorkloadName': WORKLOAD_NAME,
+                  'Timestamp': datetime.utcnow().isoformat(),
+                  'Details': 'Well-Architected Review placeholder content.'
+              }
+              
+              report_name = f"WellArchitectedReport_{WORKLOAD_NAME}_{datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')}.json"
+              store_report_in_s3(report_name, report_content)
+              send_sns_notification(report_name)
+
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps(f"Report generated and stored in S3: {report_name}")
+              }
+
+          def create_or_get_workload():
+              """Creates a Well-Architected Workload if it doesn't exist, otherwise returns the existing workload ID."""
+              try:
+                  response = wellarchitected_client.create_workload(
+                      WorkloadName=WORKLOAD_NAME,
+                      AccountIds=ACCOUNT_IDS,
+                      AwsRegions=[os.environ['AWS_REGION']],
+                      Environment=ENVIRONMENT,
+                      Description='Automated Well-Architected Review workload',
+                      ReviewOwner=os.environ['REVIEW_OWNER_EMAIL']
+                  )
+                  workload_id = response['WorkloadId']
+                  ssm_client.put_parameter(
+                      Name=f"/wellarchitected/{WORKLOAD_NAME}/workload-id",
+                      Value=workload_id,
+                      Type='String',
+                      Overwrite=True
+                  )
+                  return workload_id
+              except wellarchitected_client.exceptions.ResourceAlreadyExistsException:
+                  # If the workload already exists, retrieve its ID
+                  return get_existing_workload_id()
+
+          def get_existing_workload_id():
+              """Fetches the existing workload ID."""
+              response = wellarchitected_client.list_workloads()
+              for workload in response['Workloads']:
+                  if workload['WorkloadName'] == WORKLOAD_NAME:
+                      return workload['WorkloadId']
+              return None
+
+          def store_report_in_s3(report_name, report_content):
+              """Stores the generated report in an S3 bucket."""
+              s3_client.put_object(
+                  Bucket=S3_BUCKET_NAME,
+                  Key=report_name,
+                  Body=json.dumps(report_content, indent=4),
+                  ContentType='application/json'
+              )
+
+          def send_sns_notification(report_name):
+              """Sends an SNS notification with the details of the generated report."""
+              message = (
+                  f"A new Well-Architected Report has been generated.\n"
+                  f"Report Name: {report_name}\n"
+                  f"Stored in S3 bucket: {S3_BUCKET_NAME}"
+              )
+              sns_client.publish(
+                  TopicArn=SNS_TOPIC_ARN,
+                  Message=message,
+                  Subject='AWS Well-Architected Review Report Generated'
+              )
+
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref S3BucketName
+          SNS_TOPIC_ARN: !Ref SNSTopic
+          WORKLOAD_NAME: !Ref WorkloadName
+          ACCOUNT_IDS: !Ref AccountIds
+          ENVIRONMENT: !Ref Environment
+          #AWS_REGION: !Ref AWS::Region
+          REVIEW_OWNER_EMAIL: !Ref ReviewOwnerEmail
+
+Outputs:
+  LambdaFunctionArn:
+    Description: The ARN of the Lambda function
+    Value: !GetAtt WARAutomationLambda.Arn
+  S3BucketName:
+    Description: The name of the S3 bucket
+    Value: !Ref S3Bucket
+  SNSTopicArn:
+    Description: The ARN of the SNS topic
+    Value: !Ref SNSTopic

@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an Auto Scaling Group with a parameterized Launch Template.
+
+Parameters:
+  LaunchTemplateName:
+    Type: String
+    Default: FE-APP-LT
+    Description: Name of the Launch Template.
+
+  AutoScalingGroupName:
+    Type: String
+    Default: FE-APP
+    Description: Name of the Auto Scaling Group.
+  
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group for the Launch Template.
+    
+  ImageId:
+    Type: AWS::EC2::Image::Id
+    Description: The AMI ID for the instances.
+    
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    Description: EC2 instance type.
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t3.micro
+      - t3.small
+      - t3.medium
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: The key name to use for SSH access to the instances.
+  
+  UserData:
+    Type: String
+    Description: Base64-encoded UserData script.
+    Default: IyEvYmluL2Jhc2gKZWNobyAiRUNTX0NMVVNURVI9TXlDbHVzdGVyIiA+PiAvZXRjL2Vjcy9lY3MuY29uZmlnCg==
+    ConstraintDescription: Must be a base64 encoded script.
+  
+  AvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: Availability Zone for the instances.
+  
+  IamInstanceProfile:
+    Type: String
+    Description: The name of the IAM instance profile role to attach to the instances.
+
+  VPCZoneIdentifier:
+    Type: CommaDelimitedList
+    Description: List of subnet IDs for the Auto Scaling group Example subnet-0f1c6432b78501b25,subnet-0fdbd303a4af2afac 
+    
+  MinSize:
+    Type: Number
+    Default: 1
+    Description: Minimum size of the Auto Scaling Group.
+    
+  MaxSize:
+    Type: Number
+    Default: 5
+    Description: Maximum size of the Auto Scaling Group.
+    
+  DesiredCapacity:
+    Type: Number
+    Default: 2
+    Description: Desired capacity of the Auto Scaling Group.
+  
+Resources:
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Ref LaunchTemplateName
+      LaunchTemplateData:
+        EbsOptimized: true
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              Encrypted: true
+              DeleteOnTermination: true
+              VolumeSize: 40
+              VolumeType: gp3
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: true
+            DeleteOnTermination: true
+            DeviceIndex: 0
+            Groups:
+              - !Ref SecurityGroup
+        ImageId: !Ref ImageId
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref KeyName
+        Monitoring:
+          Enabled: true
+        Placement:
+          AvailabilityZone: !Ref AvailabilityZone
+          Tenancy: default
+        DisableApiTermination: false
+        InstanceInitiatedShutdownBehavior: terminate
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Ref AutoScalingGroupName
+              - Key: Environment
+                Value: Production
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Ref AutoScalingGroupName
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 2
+          HttpEndpoint: enabled
+        InstanceMarketOptions:
+          MarketType: spot
+          SpotOptions:
+            InstanceInterruptionBehavior: terminate
+        UserData: !Ref UserData
+        IamInstanceProfile:
+          Name: !Ref IamInstanceProfile
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroupName
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: !Ref MinSize
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+      VPCZoneIdentifier: !Ref VPCZoneIdentifier
+      HealthCheckType: EC2
+      HealthCheckGracePeriod: 300
+      TerminationPolicies:
+        - OldestInstance
+      Tags:
+        - Key: Name
+          Value: !Ref AutoScalingGroupName
+          PropagateAtLaunch: true
+        - Key: Environment
+          Value: Production
+          PropagateAtLaunch: true
+  
+Outputs:
+  ASGName:
+    Description: The name of the Auto Scaling Group.
+    Value: !Ref AutoScalingGroup
+  
+  LaunchTemplateId:
+    Description: The ID of the Launch Template.
+    Value: !Ref LaunchTemplate
+

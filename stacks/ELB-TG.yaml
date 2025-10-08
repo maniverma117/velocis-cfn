@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFormation Template to Create a Target Group and Attach it to an Existing Listener on Port 443 with Multiple Conditions
+
+Parameters:
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+    Description: Select the VPC where the target group will be created
+
+  TargetGroupName:
+    Type: String
+    Default: "APP-TG"
+    Description: The name of the target group
+
+  HealthCheckPath:
+    Type: String
+    Default: "/"
+    Description: The health check path for the target group
+
+  ListenerArn:
+    Type: String
+    Description: The ARN of the existing listener on port 443
+
+  TargetGroupPort:
+    Type: Number
+    Default: 80
+    Description: The port on which the target group will receive traffic
+
+  Protocol:
+    Type: String
+    Default: "HTTP"
+    Description: The protocol used by the target group
+
+  MatcherHttpCode:
+    Type: String
+    Default: "200-399"
+    Description: The HTTP codes to use when checking for a healthy response from a target
+
+  TargetType:
+    Type: String
+    Default: "instance"
+    Description: The type of targets that you must specify when registering targets with this target group (instance, ip, lambda)
+
+  Priority:
+    Type: Number
+    Default: 10
+    Description: The priority for the listener rule
+
+  ConditionField1:
+    Type: String
+    Default: "path-pattern"
+    Description: The first field for the listener rule condition (e.g., `path-pattern`, `host-header`)
+
+  ConditionValues1:
+    Type: CommaDelimitedList
+    Default: "/*"
+    Description: The values for the first listener rule condition (e.g., `/*`, `*.example.com`)
+
+  ConditionField2:
+    Type: String
+    Default: "host-header"
+    Description: The second field for the listener rule condition (e.g., `path-pattern`, `host-header`)
+
+  ConditionValues2:
+    Type: CommaDelimitedList
+    Default: "*.example.com"
+    Description: The values for the second listener rule condition (e.g., `/*`, `*.example.com`)
+
+Resources:
+  TargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties: 
+      Name: !Ref TargetGroupName
+      Protocol: !Ref Protocol
+      Port: !Ref TargetGroupPort
+      VpcId: !Ref VPCId
+      HealthCheckProtocol: !Ref Protocol
+      HealthCheckPort: "traffic-port"
+      HealthCheckEnabled: true
+      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: !Ref MatcherHttpCode
+      TargetType: !Ref TargetType
+      IpAddressType: "ipv4"
+      Tags:
+        - Key: Name
+          Value: !Ref TargetGroupName
+
+  ListenerRule:
+    Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
+    Properties: 
+      ListenerArn: !Ref ListenerArn
+      Priority: !Ref Priority
+      Conditions:
+        - Field: !Ref ConditionField1
+          Values: !Ref ConditionValues1
+        - Field: !Ref ConditionField2
+          Values: !Ref ConditionValues2
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+Outputs:
+  TargetGroupArn:
+    Description: The ARN of the created target group
+    Value: !Ref TargetGroup
+
+  ListenerRuleArn:
+    Description: The ARN of the created listener rule
+    Value: !Ref ListenerRule
+

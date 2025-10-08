@@ -1,0 +1,155 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation template to create an RDS instance with customizable options.
+
+Parameters:
+  DBInstanceIdentifier:
+    Type: String
+    Description: The DB instance identifier
+    Default: MyDBInstance
+
+  DBInstanceClass:
+    Type: String
+    Description: The database instance class
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.t3.large
+      - db.m5.large
+      - db.m5.xlarge
+
+  Engine:
+    Type: String
+    Description: The database engine to use
+    Default: mysql
+    AllowedValues:
+      - mysql
+      - postgres
+      - oracle-se2
+      - sqlserver-ex
+      - sqlserver-web
+
+  EngineVersion:
+    Type: String
+    Description: The version number of the database engine
+    Default: '8.0.35'
+
+  MasterUsername:
+    Type: String
+    Description: The master username for the database
+    Default: admin
+
+  MasterUserPassword:
+    Type: String
+    Description: The master password for the database
+    NoEcho: true
+
+  AllocatedStorage:
+    Type: Number
+    Description: The size of the database (GB)
+    Default: 20
+    MinValue: 5
+    MaxValue: 6144
+
+  MultiAZ:
+    Type: String
+    Description: Whether to create a Multi-AZ deployment
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+  DBSubnetGroupName:
+    Type: String
+    Description: The subnet group for the database
+    Default: xxxxxx
+
+  DBParameterGroupName:
+    Type: String
+    Description: The parameter group for the database
+    Default: xxxxxx
+
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+    Description: Select the VPC ID where the security group will be created
+    
+
+  StorageType:
+    Type: String
+    Description: The storage type to be associated with the DB instance
+    Default: gp3
+    AllowedValues:
+      - gp2
+      - gp3
+      - io1
+      - standard
+
+  StorageEncrypted:
+    Type: String
+    Description: Indicates whether the DB instance is encrypted
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  PubliclyAccessible:
+    Type: String
+    Description: Indicates whether the DB instance is publicly accessible
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+Resources:
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Ref DBInstanceIdentifier
+      GroupDescription: Security group for RDS instance
+      VpcId: !Ref VPCId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306 # Default MySQL port, adjust as necessary for other engines
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0 # Adjust as necessary, this allows all IPs
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      DBInstanceIdentifier: !Ref DBInstanceIdentifier
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: !Ref Engine
+      EngineVersion: !Ref EngineVersion
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Ref MasterUserPassword
+      AllocatedStorage: !Ref AllocatedStorage
+      MultiAZ: !Ref MultiAZ
+      DBSubnetGroupName: !Ref DBSubnetGroupName
+      DBParameterGroupName: !Ref DBParameterGroupName
+      VPCSecurityGroups:
+        - !GetAtt RDSSecurityGroup.GroupId
+      StorageType: !Ref StorageType
+      StorageEncrypted: !Ref StorageEncrypted
+      PubliclyAccessible: !Ref PubliclyAccessible
+      BackupRetentionPeriod: 7
+    DeletionPolicy: Snapshot
+
+Outputs:
+  RDSInstanceEndpoint:
+    Description: The connection endpoint for the RDS instance
+    Value: !GetAtt 
+      - RDSInstance
+      - Endpoint.Address
+
+  RDSInstancePort:
+    Description: The port number on which the database accepts connections
+    Value: !GetAtt 
+      - RDSInstance
+      - Endpoint.Port
+
+  RDSSecurityGroupId:
+    Description: The security group ID for the RDS instance
+    Value: !GetAtt
+      - RDSSecurityGroup
+      - GroupId

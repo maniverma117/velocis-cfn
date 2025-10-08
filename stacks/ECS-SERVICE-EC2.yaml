@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Service and Task Definition with Bridge Networking
+
+Parameters:
+  Cluster:
+    Type: String
+    Description: ECS Cluster Name
+
+  ServiceName:
+    Type: String
+    Description: ECS Service Name
+
+  TaskDefinitionFamily:
+    Type: String
+    Description: ECS Task Definition Family and Name
+
+  TargetGroupArn:
+    Type: String
+    Description: "ARN of the Target Group (TargetType: instance)"
+
+  ContainerName:
+    Type: String
+    Description: Name of the Container
+
+  Image:
+    Type: String
+    Description: URL of the image (ECR_REPO_URL:TAG)
+
+  ContainerPort:
+    Type: Number
+    Description: Port on the container (must be unique per service on the same EC2)
+
+  AwsLogsRegion:
+    Type: String
+    Description: AWS region for CloudWatch Logs
+
+  CapacityProvider:
+    Type: String
+    Description: ECS Capacity Provider
+
+  ExecutionRoleArn:
+    Type: String
+    Description: ARN of the Task Execution Role
+
+  TaskRoleArn:
+    Type: String
+    Description: ARN of the Task Role
+
+  Environment:
+    Type: CommaDelimitedList
+    Description: Environment variables for the container
+
+  EnvironmentFiles:
+    Type: List<String>
+    Description: List of S3 URIs for environment files
+
+  Cpu:
+    Type: String
+    Description: CPU units (e.g., '256', '512', '1024')
+
+  Memory:
+    Type: String
+    Description: Memory (in MiB, e.g., '512', '1024')
+
+Resources:
+  MyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref TaskDefinitionFamily
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      NetworkMode: bridge
+      ContainerDefinitions:
+        - Name: !Ref ContainerName
+          Image: !Ref Image
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              HostPort: 0
+              Protocol: tcp
+          Essential: true
+          Cpu: !Ref Cpu
+          Memory: !Ref Memory
+          Environment:
+            !If
+              - HasEnvironment
+              - !Ref Environment
+              - []
+          EnvironmentFiles:
+            !If
+              - HasEnvironmentFiles
+              - !Ref EnvironmentFiles
+              - []
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub '/ecs/${ContainerName}'
+              awslogs-create-group: 'true'
+              awslogs-region: !Ref AwsLogsRegion
+              awslogs-stream-prefix: ecs
+      RequiresCompatibilities:
+        - EC2
+
+  MyService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      ServiceName: !Ref ServiceName
+      TaskDefinition: !Ref MyTaskDefinition
+      LoadBalancers:
+        - TargetGroupArn: !Ref TargetGroupArn
+          ContainerName: !Ref ContainerName
+          ContainerPort: !Ref ContainerPort
+      DesiredCount: 1
+      CapacityProviderStrategy:
+        - CapacityProvider: !Ref CapacityProvider
+          Weight: 1
+          Base: 1
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+        MaximumPercent: 100
+        MinimumHealthyPercent: 50
+      HealthCheckGracePeriodSeconds: 120
+      SchedulingStrategy: REPLICA
+      DeploymentController:
+        Type: ECS
+      Tags:
+        - Key: Environment
+          Value: Production
+      EnableECSManagedTags: true
+      PropagateTags: TASK_DEFINITION
+      EnableExecuteCommand: true
+
+Conditions:
+  HasEnvironment: !Not [!Equals [!Join [",", !Ref Environment], ""]]
+  HasEnvironmentFiles: !Not [!Equals [!Join ["", !Ref EnvironmentFiles], ""]]
+
+Outputs:
+  ServiceArn:
+    Description: ARN of the ECS Service
+    Value: !Ref MyService
