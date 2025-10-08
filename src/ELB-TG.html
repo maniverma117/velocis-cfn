@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS ELB-TG Stack</title>  <!-- need to upadte according to stack page -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 1px 0;
+            text-align: center;
+            position: relative;
+        }
+        .header-left {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+        }
+        .header-left .button {
+            background-color: grey;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .header-left .button:hover {
+            background-color: darkgrey;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            display: flex;
+            justify-content: space-between;
+        }
+        .section {
+            width: 48%;
+        }
+        .section-header {
+            text-align: center;
+            background-color: #ffa500;
+            color: white;
+            padding: 10px;
+        }
+        .button {
+            background-color: #FFA500;
+            border: none;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #FF8C00;
+        }
+        .table-container {
+            max-height: 700px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        footer {
+            text-align: center;
+            padding: 1px;
+            background-color: #333;
+            color: #fff;
+            position: fixed;
+            width: 100%;
+            bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <button class="button" onclick="goHome()">Back to Home</button>
+        </div>
+        <h1>ELB-TG</h1>
+    </header>
+    <div class="container">
+        <div class="section">
+            <div class="section-header">STACKS</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Region Name</th>
+                            <th>Launch Stack</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>US East (Ohio)</td>
+                            <td><button class="button" onclick="createStack('us-east-2')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>US East (N. Virginia)</td>
+                            <td><button class="button" onclick="createStack('us-east-1')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>US West (N. California)</td>
+                            <td><button class="button" onclick="createStack('us-west-1')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>US West (Oregon)</td>
+                            <td><button class="button" onclick="createStack('us-west-2')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Africa (Cape Town)</td>
+                            <td><button class="button" onclick="createStack('af-south-1')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Canada (Central)</td>
+                            <td><button class="button" onclick="createStack('ca-central-1')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Hong Kong)</td>
+                            <td><button class="button" onclick="createStack('ap-east-1')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Hyderabad)</td>
+                            <td><button class="button" onclick="createStack('ap-south-2')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Jakarta)</td>
+                            <td><button class="button" onclick="createStack('ap-southeast-3')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Melbourne)</td>
+                            <td><button class="button" onclick="createStack('ap-southeast-4')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Mumbai)</td>
+                            <td><button class="button" onclick="createStack('ap-south-1')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Osaka)</td>
+                            <td><button class="button" onclick="createStack('ap-northeast-3')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Seoul)</td>
+                            <td><button class="button" onclick="createStack('ap-northeast-2')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Singapore)</td>
+                            <td><button class="button" onclick="createStack('ap-southeast-1')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Sydney)</td>
+                            <td><button class="button" onclick="createStack('ap-southeast-2')">Launch</button></td>
+                        </tr>
+                        <tr>
+                            <td>Asia Pacific (Tokyo)</td>
+                            <td><button class="button" onclick="createStack('ap-northeast-1')">Launch</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="section">
+            <div class="section-header">Additional Links</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Video Title</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>AWS CloudFormation Tutorial</td>
+                            <td><a href="https://www.youtube.com/Visit?v=link1" target="_blank">Visit</a></td>
+                        </tr>
+                        <tr>
+                            <td>VPC Setup Guide</td>
+                            <td><a href="https://www.youtube.com/Visit?v=link2" target="_blank">Visit</a></td>
+                        </tr>
+                        <tr>
+                            <td>AWS RDS Setup</td>
+                            <td><a href="https://www.youtube.com/Visit?v=link3" target="_blank">Visit</a></td>
+                        </tr>
+                        <tr>
+                            <td>AWS CloudFormation Tutorial</td>
+                            <td><a href="https://www.youtube.com/Visit?v=link1" target="_blank">Visit</a></td>
+                        </tr>
+                        <tr>
+                            <td>VPC Setup Guide</td>
+                            <td><a href="https://www.youtube.com/Visit?v=link2" target="_blank">Visit</a></td>
+                        </tr>
+                        <tr>
+                            <td>AWS RDS Setup</td>
+                            <td><a href="https://www.youtube.com/Visit?v=link3" target="_blank">Visit</a></td>
+                        </tr>
+                        <tr>
+                            <td>CloudFormation User Guide</td>
+                            <td><a href="https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html" target="_blank">Visit</a></td>
+                        </tr>
+                        <tr>
+                            <td>VPC User Guide</td>
+                            <td><a href="https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html" target="_blank">Visit</a></td>
+                        </tr>
+                        <!-- Add more rows as needed -->
+                    </tbody>
+                </table>
+            </div>
+            <!-- Additional Table -->
+            <div class="section-header">YouTube Links</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Resource Title</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Official AWS Documentation</td>
+                            <td><a href="https://docs.aws.amazon.com/" target="_blank">watch</a></td>
+                        </tr>
+                        <tr>
+                            <td>CloudFormation User Guide</td>
+                            <td><a href="https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html" target="_blank">watch</a></td>
+                        </tr>
+                        <tr>
+                            <td>VPC User Guide</td>
+                            <td><a href="https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html" target="_blank">watch</a></td>
+                        </tr>
+                        <tr>
+                            <td>Official AWS Documentation</td>
+                            <td><a href="https://docs.aws.amazon.com/" target="_blank">watch</a></td>
+                        </tr>
+                        <tr>
+                            <td>CloudFormation User Guide</td>
+                            <td><a href="https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html" target="_blank">watch</a></td>
+                        </tr>
+                        <tr>
+                            <td>VPC User Guide</td>
+                            <td><a href="https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html" target="_blank">watch</a></td>
+                        </tr>
+                        <tr>
+                            <td>CloudFormation User Guide</td>
+                            <td><a href="https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html" target="_blank">watch</a></td>
+                        </tr>
+                        <tr>
+                            <td>VPC User Guide</td>
+                            <td><a href="https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html" target="_blank">watch</a></td>
+                        </tr>
+                        <!-- Add more rows as needed -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function goHome() {
+            window.location.href = '../index.html'; // Change this to your home page URL
+        }
+
+        function createStack(region) {
+            var clientName = 'ClientName'; // Predefined client name
+            var url = 'https://' + region + '.console.aws.amazon.com/cloudformation/home?region=' + region + '#/stacks/create?new?stackName=' + encodeURIComponent(clientName) + '&templateURL=https://cfn-hyperlink-test.s3.ap-south-1.amazonaws.com/ELB-TG.yaml';
+            window.open(url, '_blank');
+        }
+    </script>
+    <footer>
+        <p>&copy; CFN</p>
+    </footer>
+</body>
+</html>
